@@ -8,9 +8,20 @@ type Todo = {
 };
 
 function apiUrl(path: string) {
-  const origin = import.meta.env.VITE_API_ORIGIN.replace(/\/$/, '');
-  const base = import.meta.env.VITE_API_BASE_PATH.replace(/\/$/, '');
+  // 1. origin 값이 있으면 뒤에 슬래시를 떼고, 없으면 그냥 빈 문자열("") 처리
+  const origin = import.meta.env.VITE_API_ORIGIN
+    ? import.meta.env.VITE_API_ORIGIN.replace(/\/$/, '')
+    : '';
+
+  // 2. basePath 앞뒤 슬래시 깔끔하게 정렬
+  const base = import.meta.env.VITE_API_BASE_PATH
+    ? import.meta.env.VITE_API_BASE_PATH.replace(/\/$/, '')
+    : '';
+
+  // 3. 들어온 path 맨 앞에 슬래시가 없다면 붙여주기
   const suffix = path.startsWith('/') ? path : `/${path}`;
+
+  // 4. 조립 결과 리턴
   return `${origin}${base}${suffix}`;
 }
 

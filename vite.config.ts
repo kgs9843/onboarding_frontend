@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, 'local.env') });
 
-const apiOrigin = process.env.VITE_API_ORIGIN ?? 'https://olive0.store';
+const apiOrigin = process.env.VITE_API_ORIGIN ?? '';
 const apiBasePath = process.env.VITE_API_BASE_PATH ?? '/api';
 
 export default defineConfig({
