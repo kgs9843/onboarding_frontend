@@ -105,6 +105,7 @@ jobs:
             --platform linux/arm64 \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            --provenance=false \
             --push .
 
       # # 5. 🔥 [새로 추가] AWS ECS 서비스 강제 새 배포 (무중단 새로고침)
