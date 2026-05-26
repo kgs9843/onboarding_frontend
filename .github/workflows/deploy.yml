@@ -1,4 +1,58 @@
-name: Deploy Frontend to AWS ECR
+# name: Deploy Frontend to AWS ECR
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# permissions:
+#   id-token: write
+#   contents: read
+
+# jobs:
+#   deploy:
+#     name: Build and Push Frontend ARM Image
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v4
+
+#       # 1. 깃허브 가상 컴퓨터(x86)에서 가성비 좋은 AWS ARM64 이미지를 구울 수 있도록 QEMU를 켭니다.
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v3
+
+#       # 2. AWS 자격 증명 (OIDC 방식 - 보안 최강)
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: arn:aws:iam::730335303837:role/role-smileshark-dev-github-actions-deploy
+#           aws-region: ap-northeast-2
+
+#       # 3. AWS ECR 로그인 토큰 받기
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
+
+#       # 4. 순정 도커 명령어로 ARM64 이미지 빌드 후 ECR로 슛!
+#       - name: Build, Tag, and Push ARM64 Image to Amazon ECR
+#         env:
+#           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#           # 🚨 [주의] AWS ECR에 프론트엔드용 리포지토리를 미리 만드시고 그 이름을 적어주세요!
+#           ECR_REPOSITORY: onboarding-frontend 
+#           IMAGE_TAG: ${{ github.sha }}
+#         run: |
+#           # ① 순정 도커 명령어로 가성비 원탑 ARM64 기반 프론트엔드 이미지 빌드
+#           docker build --platform linux/arm64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          
+#           # ② 고유 커밋 해시 태그(IMAGE_TAG)로 ECR 푸시
+#           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+#           # ③ 언제나 최신본을 가리키는 latest 태그로 ECR 푸시
+#           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+
+name: Deploy Frontend to AWS ECS (ARM64)
 
 on:
   push:
@@ -11,7 +65,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Build and Push Frontend ARM Image
+    name: Build, Push and Deploy Frontend ARM Image
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +76,15 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      # 🔥 [변경] 순정 docker build 대신 초고속 멀티 플랫폼 빌드를 가능하게 하는 Buildx 엔진을 켭니다.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       # 2. AWS 자격 증명 (OIDC 방식 - 보안 최강)
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::058264340391:role/role-smileshark-dev-github-action
+          role-to-assume: arn:aws:iam::730335303837:role/role-smileshark-dev-github-actions-deploy
           aws-region: ap-northeast-2
 
       # 3. AWS ECR 로그인 토큰 받기
@@ -34,19 +92,26 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4. 순정 도커 명령어로 ARM64 이미지 빌드 후 ECR로 슛!
-      - name: Build, Tag, and Push ARM64 Image to Amazon ECR
+      # 4. 🔥 [변경] Buildx를 사용하여 초고속 ARM64 이미지 빌드와 동시에 ECR 창고로 슛!
+      - name: Build and Push ARM64 Image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # 🚨 [주의] AWS ECR에 프론트엔드용 리포지토리를 미리 만드시고 그 이름을 적어주세요!
           ECR_REPOSITORY: onboarding-frontend 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # ① 순정 도커 명령어로 가성비 원탑 ARM64 기반 프론트엔드 이미지 빌드
-          docker build --platform linux/arm64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          
-          # ② 고유 커밋 해시 태그(IMAGE_TAG)로 ECR 푸시
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          
-          # ③ 언제나 최신본을 가리키는 latest 태그로 ECR 푸시
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          # buildx를 쓰면 빌드와 동시에 ECR 푸시까지 (--push 옵션) 백엔드 단에서 실시간 스트리밍으로 한 방에 처리됩니다.
+          # 아까 KMS 정책에 ecr.amazonaws.com을 추가했기 때문에 여기서 권한 에러 없이 깨끗하게 통과됩니다!
+          docker buildx build \
+            --platform linux/arm64 \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            --push .
+
+      # # 5. 🔥 [새로 추가] AWS ECS 서비스 강제 새 배포 (무중단 새로고침)
+      # # 깃허브 액션이 퇴근하면서 ECS 지점장에게 위임장(Grant)을 넘기고 새로고침 버튼을 누르는 단계입니다.
+      # - name: Deploy to Amazon ECS
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster ecr-cluster-smileshark-dev \
+      #       --service service-smileshark-dev-frontend \
+      #       --force-new-deployment
