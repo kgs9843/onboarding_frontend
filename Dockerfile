@@ -23,4 +23,4 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 # Nginx 백그라운드 구동
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["sh", "-c", "sleep 5 && nginx -g 'daemon off;'"]
